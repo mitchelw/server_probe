@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Probing: {{ addr }}</title>
+    <script src="//unpkg.com/three"></script>
+    <script src="//unpkg.com/three-globe"></script>
+</head>
+<body>
+    <div style="margin-top: 30px; margin-bottom: 30px">
+        <a href="http://3.21.69.167/" style="background: black; padding: 10px; border-radius: 10px; padding-bottom: 15px; text-decoration: none; cursor: pointer">
+            <span style="vertical-align: middle" class="edit-button" onclick="">
+                <span style="vertical-align: top; margin-right: 5px;" class="back-button-icon"><svg xmlns="http://www.w3.org/2000/svg" shape-rendering="geometricPrecision" text-rendering="geometricPrecision" image-rendering="optimizeQuality" fill-rule="evenodd" clip-rule="evenodd" viewBox="0 0 500 511.61"><path fill-rule="nonzero" d="m234.04 148.39-15.5 101.27c45.53-4.54 96.06-15.77 138.72-45.89 47.72-33.69 86.31-91.72 98.25-191.8.87-7.43 7.62-12.75 15.06-11.87 5.73.68 10.21 4.85 11.55 10.13 10.87 32.61 16.46 63.43 17.63 92.35 3.27 79.4-26.39 144.21-70.18 193.61-43.36 48.92-100.66 82.64-153.32 100.33-20.18 6.79-39.8 11.27-57.77 13.36l15.44 85.83c1.31 7.33-3.57 14.37-10.91 15.69-4.07.72-8.04-.46-11-2.9L4.91 337.19c-5.76-4.76-6.57-13.32-1.8-19.08l1.54-1.58 207.06-180.39c5.64-4.92 14.22-4.32 19.14 1.32 2.72 3.12 3.75 7.13 3.19 10.93z"/></svg></span>
+                Back
+            </span>
+        </a>
+    </div>
+    <h2>Probing:</h2>
+    <div style="margin-left: 50px">
+        <div style="display: flex; text-align:center; font-size: 1.25em">
+            <img src="http://{{ addr }}/favicon.ico" height="25px" style="margin-right: 10px"/>
+            {{ addr }} ({{ ip }})
+            <img src="https://flagcdn.com/48x36/{{ country_code }}.png" height="25px" style="margin-left: 10px">
+        </div>
+    </div>
+    <div style="display: flex;">
+        <div>
+            <h2>Ports:</h2>
+            <div style="margin-left: 50px">
+                <table>
+                    <tr>
+                        <th>Port</th>
+                        <th>State</th>
+                        <th>Service</th>
+                    </tr>
+                    {% for p in ports %}
+                        <tr>
+                            <td>{{ p[0] }}</td>
+                            <td>{{ p[1]|title }}</td>
+                            <td>{{ p[2] }}</td>
+                        </tr>
+                    {% endfor %}
+                </table>
+                <small>{{ not_shown }}</small>
+            </div>
+        </div>
+        <div style="margin-left: 50px">
+            <div style="display: flex">
+                <div id="globe" style="margin-left: calc(100vw / 2 - 400px); "></div>
+            <ul class="legend">
+                    <style>
+                        ul {
+                            list-style: none;
+                        }
+
+                        ul .legend::before {
+                            content: "\2022";
+                            color: red;
+                            font-weight: bold;
+                            display: inline-block;
+                            width: 1em;
+                            margin-left: -1em;
+                        }
+                        #blue::before {
+                            color: blue;
+                        }
+                        #green::before {
+                            color: green;
+                        }
+                    </style>
+                    <li class="legend" id="blue">Origination Server</li>
+                    <li class="legend" id="green">Intermediate Routers</li>
+                    <li class="legend" id="red">Destination</li>
+                </ul>
+            </div>
+            <h2>Traceroute:</h2>
+            <div style="margin-left: 20px">
+                <ul style="list-style: none;">
+                    {% for hop in tr_hops %}
+                        {% if hop[0] == '?' %}
+                            <li class="traceroute_list_item"><span style="margin-right: 35px; margin-left: 10px; font-weight: bold; font-size: 1.5em" title="No geolocation available">?</span>{{ hop[1] }}</li>
+                        {% elif hop[0] == '!' %}
+                            <li class="traceroute_list_item"><span style="margin-right: 35px; margin-left: 10px; font-weight: bold; font-size: 1.5em" title="ICMP packets are likely blocked by the firewall asscoiated with this node">!</span>{{ hop[1] }}</li>
+                        {% else %}
+                            <li class="traceroute_list_item"><img src="https://flagcdn.com/48x36/{{ hop[0] }}.png" height="25px" style="margin-right: 20px">{{ hop[1] }}</li>
+                        {% endif %}
+                    {% endfor %}
+                </ul>
+            </div>
+        </div>
+    </div>
+
+    <style>
+        {{ stylesheet }}
+    </style>
+
+    <script type="importmap">{ "imports": { "three": "https://unpkg.com/three/build/three.module.js" }}</script>
+    <script type="module">
+        import { TrackballControls } from '//unpkg.com/three/examples/jsm/controls/TrackballControls.js';
+        import { CSS2DRenderer } from '//unpkg.com/three/examples/jsm/renderers/CSS2DRenderer.js';
+        Object.assign(THREE , { TrackballControls, CSS2DRenderer });
+
+        const arcsData = [
+            {% if hop_coords|length > 1 %}
+                {% for coord in hop_coords %}
+                    {% if not loop.first %} {# Skip the first loop iteration #}
+                        {
+                            startLat: {{ loop.previtem[0] }},
+                            startLng: {{ loop.previtem[1] }},
+                            endLat: {{ coord[0] }},
+                            endLng: {{ coord[1] }},
+                            color: "green"
+                        },
+                    {% endif %}
+                {% endfor %}
+            {% endif %}
+        ]
+        
+        const nodes = [
+            {% if hop_coords|length > 0 %}
+                {% for coord in hop_coords %}
+                    { 
+                        lat: {{ coord[0] }},
+                        lng: {{ coord[1] }},
+                        size: 10,
+                        {% if loop.first %}
+                            color: "blue", 
+                        {% elif loop.last %}
+                            color: "red",
+                        {% else %}
+                            color: "green",
+                        {% endif %}
+                    },
+                {% endfor %}
+            {% endif %}
+        ]
+
+        let i = 0;
+
+        const markerSvg = `<svg viewBox="-4 0 36 36">
+<g>
+<path fill="currentColor" d="M27.25,4.655C20.996-1.571,10.88-1.546,4.656,4.706C-1.571,10.96-1.548,21.076,4.705,27.3
+\t\tc6.256,6.226,16.374,6.203,22.597-0.051C33.526,20.995,33.505,10.878,27.25,4.655z"/>
+<path fill="currentColor" d="M13.288,23.896l-1.768,5.207c2.567,0.829,5.331,0.886,7.926,0.17l-0.665-5.416
+\t\tC17.01,24.487,15.067,24.5,13.288,23.896z M8.12,13.122l-5.645-0.859c-0.741,2.666-0.666,5.514,0.225,8.143l5.491-1.375
+\t\tC7.452,17.138,7.426,15.029,8.12,13.122z M28.763,11.333l-4.965,1.675c0.798,2.106,0.716,4.468-0.247,6.522l5.351,0.672
+\t\tC29.827,17.319,29.78,14.193,28.763,11.333z M11.394,2.883l1.018,5.528c2.027-0.954,4.356-1.05,6.442-0.288l1.583-5.137
+\t\tC17.523,1.94,14.328,1.906,11.394,2.883z"/>
+<circle fill="black" cx="15.979" cy="15.977" r="6.117"/>
+</g>
+</svg>`
+
+        const Globe = new ThreeGlobe()
+            .globeImageUrl('//unpkg.com/three-globe/example/img/earth-dark.jpg')
+            .arcsData(arcsData)
+            .arcColor('color')
+            .arcDashLength(1)
+            .arcDashGap({{ hop_coords|length * 2 }})
+            .arcDashInitialGap(() => i++ * 2)
+            .arcDashAnimateTime(1000)
+            .atmosphereColor(0x00ff00)
+            .htmlElementsData(nodes)
+            .htmlElement(d => {
+                const el = document.createElement('div');
+                el.innerHTML = markerSvg;
+                el.style.color = d.color;
+                el.style.width = `${d.size}px`;
+                return el;
+            });
+
+        // Setup renderer
+        const renderers = [new THREE.WebGLRenderer(), new THREE.CSS2DRenderer()];
+        renderers.forEach((r, idx) => {
+            r.setSize(400, 400);
+            if (idx > 0) {
+                // overlay additional on top of main renderer
+                r.domElement.style.position = 'absolute';
+                r.domElement.style.top = '150px';
+                r.domElement.style.pointerEvents = 'none';
+            }
+            document.getElementById('globe').appendChild(r.domElement);
+        });
+
+        // Setup scene
+        const scene = new THREE.Scene();
+        scene.add(Globe);
+        scene.add(new THREE.AmbientLight(0xffffff));
+        scene.add(new THREE.DirectionalLight(0xffffff, 0.6));
+        scene.background = new THREE.Color(0x232323);
+
+        // Setup camera
+        const camera = new THREE.PerspectiveCamera();
+        camera.aspect = 1;
+        camera.updateProjectionMatrix();
+        camera.position.z = 300;
+
+        // Add camera controls
+        const tbControls = new THREE.TrackballControls(camera, renderers[0].domElement);
+        tbControls.minDistance = 101;
+        tbControls.rotateSpeed = 1;
+        tbControls.zoomSpeed = 0.8;
+        tbControls.dynamicDampingFactor = 0.5;
+        camera.position.x = -300 * Math.cos(.2); // Position the camera looking at the US
+        camera.position.z = -300 * Math.sin(.2);
+        camera.position.y = 300 * Math.sin(3.14 / 2);
+        camera.fov = 35;
+        camera.updateProjectionMatrix();
+
+        // Update pov when camera moves
+        Globe.setPointOfView(camera.position, Globe.position);
+        tbControls.addEventListener('change', () => Globe.setPointOfView(camera.position, Globe.position));
+
+
+        // Kick-off renderer
+        (function animate() { // IIFE
+          // Frame cycle
+          tbControls.update();
+          renderers.forEach(r => r.render(scene, camera));
+          requestAnimationFrame(animate);
+        })();
+  </script>    
+
+</body>
+</html>
